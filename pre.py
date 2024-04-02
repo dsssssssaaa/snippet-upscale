@@ -1,46 +1,43 @@
-import argparse
-import tensorflow as tf
+import librosa
 import numpy as np
 import os
 
-# Function to preprocess audio data
-def preprocess_audio(data_dir):
+def preprocess_and_save_audio_data(data_dir, target_sr=22050, duration=10):
+    # Form paths to the 'dataHQ' and 'dataLQ' subfolders
     hq_dir = os.path.join(data_dir, 'dataHQ')
     lq_dir = os.path.join(data_dir, 'dataLQ')
 
-    # Preprocessing steps here
-    # Load audio files, normalize, resample, extract features, etc.
+    # Process audio files from 'dataHQ' subfolder
+    for file in os.listdir(hq_dir):
+        file_path = os.path.join(hq_dir, file)
+        if file.endswith('.wav'):  # Check if the file is a WAV file
+            processed_audio = preprocess_audio(file_path, target_sr=target_sr, duration=duration)
+            save_path = os.path.join(hq_dir, 'hqpro', file.split('.')[0] + '.npy')
+            np.save(save_path, processed_audio)
 
-    return x_train, y_train, x_val, y_val
+    # Process audio files from 'dataLQ' subfolder
+    for file in os.listdir(lq_dir):
+        file_path = os.path.join(lq_dir, file)
+        if file.endswith('.wav'):  # Check if the file is a WAV file
+            processed_audio = preprocess_audio(file_path, target_sr=target_sr, duration=duration)
+            save_path = os.path.join(lq_dir, 'lqpro', file.split('.')[0] + '.npy')
+            np.save(save_path, processed_audio)
 
-def create_model():
-    model = tf.keras.Sequential([
-        # Define your model layers here
-    ])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    return model
+def preprocess_audio(file_path, target_sr=22050, duration=10):
+    # Load audio file
+    audio, sr = librosa.load(file_path, sr=target_sr, duration=duration, mono=True)
 
-def main():
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description='Process audio files')
-    parser.add_argument('--data', type=str, required=True, help='Path to data directory')
-    args = parser.parse_args()
+    # Extract features (e.g., Mel spectrogram)
+    mel_spectrogram = librosa.feature.melspectrogram(y=audio, sr=sr)
 
-    data_dir = args.data
+    # Convert amplitude to decibels (log scale)
+    mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
 
-    # Preprocess audio data
-    x_train, y_train, x_val, y_val = preprocess_audio(data_dir)
+    # Normalize spectrogram values between 0 and 1
+    mel_spectrogram_db_normalized = (mel_spectrogram_db - np.min(mel_spectrogram_db)) / (np.max(mel_spectrogram_db) - np.min(mel_spectrogram_db))
 
-    # Define the model
-    model = create_model()
+    return mel_spectrogram_db_normalized
 
-    # Train the model
-    model.fit(x_train, y_train, epochs=10, validation_data=(x_val, y_val))
-
-    # Evaluate the model
-    loss, accuracy = model.evaluate(x_val, y_val)
-    print("Validation Loss:", loss)
-    print("Validation Accuracy:", accuracy)
-
-if __name__ == "__main__":
-    main()
+# Example usage:
+data_dir = "/content/snippet-upscale/data"
+preprocess_and_save_audio_data(data_dir)
