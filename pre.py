@@ -1,43 +1,25 @@
-import librosa
-import numpy as np
-import os
+import torch
+import torchaudio
+import matplotlib.pyplot as plt
 
-def preprocess_and_save_audio_data(data_dir, target_sr=22050, duration=10):
-    # Form paths to the 'dataHQ' and 'dataLQ' subfolders
-    hq_dir = os.path.join(data_dir, 'dataHQ')
-    lq_dir = os.path.join(data_dir, 'dataLQ')
+# Load audio file
+waveform, sample_rate = torchaudio.load("audio_file.wav")
 
-    # Process audio files from 'dataHQ' subfolder
-    for file in os.listdir(hq_dir):
-        file_path = os.path.join(hq_dir, file)
-        if file.endswith('.wav'):  # Check if the file is a WAV file
-            processed_audio = preprocess_audio(file_path, target_sr=target_sr, duration=duration)
-            save_path = os.path.join(hq_dir, 'hqpro', file.split('.')[0] + '.npy')
-            np.save(save_path, processed_audio)
+# Compute spectrogram
+n_fft = 400
+win_length = 400
+hop_length = 160
+window = torch.hann_window(win_length)
+specgram = torch.stft(waveform, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window)
 
-    # Process audio files from 'dataLQ' subfolder
-    for file in os.listdir(lq_dir):
-        file_path = os.path.join(lq_dir, file)
-        if file.endswith('.wav'):  # Check if the file is a WAV file
-            processed_audio = preprocess_audio(file_path, target_sr=target_sr, duration=duration)
-            save_path = os.path.join(lq_dir, 'lqpro', file.split('.')[0] + '.npy')
-            np.save(save_path, processed_audio)
+# Convert complex spectrogram to magnitude spectrogram
+magnitude_specgram = torch.sqrt(specgram[..., 0]**2 + specgram[..., 1]**2)
 
-def preprocess_audio(file_path, target_sr=22050, duration=10):
-    # Load audio file
-    audio, sr = librosa.load(file_path, sr=target_sr, duration=duration, mono=True)
-
-    # Extract features (e.g., Mel spectrogram)
-    mel_spectrogram = librosa.feature.melspectrogram(y=audio, sr=sr)
-
-    # Convert amplitude to decibels (log scale)
-    mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
-
-    # Normalize spectrogram values between 0 and 1
-    mel_spectrogram_db_normalized = (mel_spectrogram_db - np.min(mel_spectrogram_db)) / (np.max(mel_spectrogram_db) - np.min(mel_spectrogram_db))
-
-    return mel_spectrogram_db_normalized
-
-# Example usage:
-data_dir = "/content/snippet-upscale/data"
-preprocess_and_save_audio_data(data_dir)
+# Plot spectrogram
+plt.figure(figsize=(10, 4))
+plt.imshow(torch.log(magnitude_specgram.squeeze() + 1e-9).numpy(), aspect='auto', origin='lower')
+plt.xlabel('Time')
+plt.ylabel('Frequency')
+plt.title('Spectrogram')
+plt.colorbar(format='%+2.0f dB')
+plt.show()
